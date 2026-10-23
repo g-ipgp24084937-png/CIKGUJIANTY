@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Wira Membaca: Kembara Haiwan Kampung</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@600;800;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      font-family: 'Nunito', sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    h1, h2, h3, .font-heading {
+      font-family: 'Fredoka', cursive, sans-serif;
+    }
+    
+    /* Custom Animations */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { transform: scale(1.05); box-shadow: 0 0 0 18px rgba(239, 68, 68, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    
+    .mic-listening {
+      animation: pulse-ring 1.5s infinite;
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-8px); }
+    }
+    .animate-float {
+      animation: float 2.5s ease-in-out infinite;
+    }
+
+    /* Speech wave effect */
+    .sound-wave {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      height: 20px;
+    }
+    .sound-wave span {
+      width: 4px;
+      height: 100%;
+      background-color: #ef4444;
+      border-radius: 3px;
+      animation: wave 1.2s ease-in-out infinite;
+    }
+    .sound-wave span:nth-child(2) { animation-delay: 0.2s; }
+    .sound-wave span:nth-child(3) { animation-delay: 0.4s; }
+    .sound-wave span:nth-child(4) { animation-delay: 0.1s; }
+    .sound-wave span:nth-child(5) { animation-delay: 0.3s; }
+
+    @keyframes wave {
+      0%, 100% { height: 4px; }
+      50% { height: 20px; }
+    }
+
+    /* Canvas styling */
+    #gameCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border-radius: 1rem;
+    }
+
+    /* Confetti Canvas */
+    #confettiCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 50;
+    }
+  </style>
+</head>
+<body class="bg-emerald-950 text-slate-800 min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 overflow-x-hidden">
+
+  <!-- Main Game Container -->
+  <div class="w-full max-w-3xl bg-amber-50 rounded-3xl shadow-2xl border-4 border-amber-400 p-3 sm:p-6 flex flex-col relative overflow-hidden">
+    
+    <!-- Header Controls & Scores -->
+    <header class="flex justify-between items-center mb-3 bg-emerald-100 p-3 rounded-2xl border-2 border-emerald-300">
+      <div class="flex items-center gap-2">
+        <span class="bg-emerald-600 text-white font-heading font-bold text-xs sm:text-sm px-3 py-1 rounded-full shadow-sm" id="levelDisplay">
+          Tahap 1 / 5
+        </span>
+      </div>
+      <h1 class="text-lg sm:text-2xl font-heading font-extrabold text-emerald-900 tracking-wide hidden sm:block">
+        🌿 Wira Membaca: Kembara Haiwan
+      </h1>
+      <div class="flex items-center gap-2">
+        <span class="text-emerald-900 font-bold text-xs sm:text-sm">Markah:</span>
+        <span class="bg-amber-500 text-white font-heading font-bold text-sm sm:text-lg px-3 py-1 rounded-full shadow-sm" id="scoreDisplay">
+          0
+        </span>
+      </div>
+    </header>
+
+    <!-- Canvas Animation Area -->
+    <div class="relative w-full h-48 sm:h-64 bg-sky-200 rounded-2xl overflow-hidden shadow-inner border-2 border-emerald-400 mb-4">
+      <canvas id="gameCanvas"></canvas>
+      
+      <!-- Overlay Toast/Notice Banner inside Canvas -->
+      <div id="canvasNotice" class="absolute top-2 left-1/2 -translate-x-1/2 bg-slate-900/80 text-white text-xs sm:text-sm px-4 py-1.5 rounded-full backdrop-blur-md transition-opacity duration-300 opacity-0 pointer-events-none text-center max-w-[90%]">
+        Sedia untuk menyebut perkataan!
+      </div>
+    </div>
+
+    <!-- Sentence / Word Display Card -->
+    <div class="bg-white rounded-2xl p-4 sm:p-5 shadow-md border-2 border-amber-200 mb-4 flex flex-col items-center text-center relative">
+      <div class="flex items-center justify-center gap-2 mb-1">
+        <span id="placeIcon" class="text-4xl sm:text-5xl animate-float">🦎</span>
+        <span class="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-0.5 rounded-full" id="placeCategory">Haiwan Hutan</span>
+      </div>
+      
+      <p class="text-xs text-slate-500 mb-1 font-semibold">Sebut perkataan ini dengan jelas:</p>
+      
+      <h2 id="targetSentence" class="text-2xl sm:text-4xl font-black text-emerald-900 my-1 leading-snug font-heading tracking-widest uppercase">
+        CICAK
+      </h2>
+
+      <!-- Speech Recognition Live Feedback -->
+      <div class="w-full mt-2 pt-2 border-t border-slate-100 flex flex-col items-center min-h-[42px]">
+        <div id="speechStatus" class="text-xs font-semibold text-slate-500 mb-1 flex items-center gap-2">
+          <span>Tekan butang mikrofon untuk mula</span>
+        </div>
+        <p id="spokenResult" class="text-base font-bold text-indigo-600 italic hidden">
+          "..."
+        </p>
+      </div>
+    </div>
+
+    <!-- Interaction Controls Area -->
+    <div class="flex flex-col items-center justify-center gap-3">
+      
+      <!-- Push-To-Talk Microphone Button -->
+      <div class="relative flex flex-col items-center">
+        <button id="micBtn" class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-rose-500 to-red-400 text-white shadow-lg hover:shadow-xl active:scale-95 transition-all flex flex-col items-center justify-center border-4 border-white ring-4 ring-rose-200 focus:outline-none">
+          <svg id="micIcon" class="w-8 h-8 sm:w-10 sm:h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+          </svg>
+          <span class="text-[10px] font-bold mt-1 uppercase tracking-wider">TEKAN & SEBUT</span>
+        </button>
+      </div>
+
+      <!-- Action Buttons (Next Level / Retry) -->
+      <div class="flex gap-3 w-full max-w-xs mt-1">
+        <button id="nextBtn" class="hidden w-full py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-heading font-bold rounded-2xl shadow-lg text-base sm:text-lg transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 border-green-700">
+          <span>Tahap Seterusnya</span>
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
+        </button>
+        
+        <button id="retryBtn" class="hidden w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-heading font-bold rounded-2xl shadow-md text-sm transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 border-amber-700">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+          <span>Cuba Lagi</span>
+        </button>
+      </div>
+
+    </div>
+
+    <!-- Alert / Fallback Box -->
+    <div id="alertBox" class="hidden mt-3 p-3 bg-rose-100 border border-rose-300 text-rose-800 text-xs sm:text-sm rounded-xl text-center">
+    </div>
+
+  </div>
+
+  <!-- Victory Modal -->
+  <div id="victoryModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-40 flex items-center justify-center p-4 hidden">
+    <canvas id="confettiCanvas"></canvas>
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-4 border-amber-300 relative z-50 transform transition-all animate-bounce-short">
+      <div class="text-6xl mb-3">🏆</div>
+      <h2 class="text-2xl sm:text-3xl font-heading font-extrabold text-amber-900 mb-2">Tahniah! Wira Membaca!</h2>
+      <p class="text-slate-600 font-semibold mb-4 text-sm sm:text-base">Anda telah berjaya menyebut semua nama haiwan dengan betul!</p>
+      
+      <div class="bg-amber-50 p-4 rounded-2xl mb-6 border-2 border-amber-200">
+        <span class="text-xs uppercase tracking-wider text-amber-700 font-bold block mb-1">Jumlah Markah Akhir</span>
+        <span id="finalScore" class="text-4xl font-heading font-extrabold text-emerald-600">50</span>
+        <span class="text-sm font-bold text-amber-800 block mt-1">/ 50 Markah</span>
+      </div>
+
+      <button id="restartBtn" class="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-heading font-extrabold rounded-2xl shadow-lg text-lg transition-all active:scale-95 border-b-4 border-green-800 flex items-center justify-center gap-2">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+        <span>Main Semula</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. GAME DATA & WORDS ARRAY
+    // ==========================================
+    const sentencesData = [
+      { id: 1, text: "CICAK", place: "Haiwan Hutan", icon: "🦎" },
+      { id: 2, text: "SEMUT", place: "Haiwan Hutan", icon: "🐜" },
+      { id: 3, text: "GAJAH", place: "Haiwan Hutan", icon: "🐘" },
+      { id: 4, text: "LEBAH", place: "Haiwan Hutan", icon: "🐝" },
+      { id: 5, text: "TAPIR", place: "Haiwan Hutan", icon: "🦛" }
+    ];
+
+    let currentLevel = 0;
+    let score = 0;
+    let isListening = false;
+    let levelCompleted = false;
+
+    // Elements
+    const levelDisplay = document.getElementById("levelDisplay");
+    const scoreDisplay = document.getElementById("scoreDisplay");
+    const targetSentenceEl = document.getElementById("targetSentence");
+    const placeIconEl = document.getElementById("placeIcon");
+    const placeCategoryEl = document.getElementById("placeCategory");
+    const speechStatusEl = document.getElementById("speechStatus");
+    const spokenResultEl = document.getElementById("spokenResult");
+    const micBtn = document.getElementById("micBtn");
+    const nextBtn = document.getElementById("nextBtn");
+    const retryBtn = document.getElementById("retryBtn");
+    const alertBox = document.getElementById("alertBox");
+    const victoryModal = document.getElementById("victoryModal");
+    const finalScoreEl = document.getElementById("finalScore");
+    const restartBtn = document.getElementById("restartBtn");
+    const canvasNotice = document.getElementById("canvasNotice");
+
+    // ==========================================
+    // 2. WEB AUDIO SYNTHESIZER (NO EXTERNAL FILES)
+    // ==========================================
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new AudioCtx();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    // Play synthesized jump & victory chime sound
+    function playSuccessSound() {
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        
+        // Jump sound chirp
+        const oscJump = audioCtx.createOscillator();
+        const gainJump = audioCtx.createGain();
+        oscJump.type = 'sine';
+        oscJump.frequency.setValueAtTime(150, now);
+        oscJump.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+        gainJump.gain.setValueAtTime(0.2, now);
+        gainJump.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        oscJump.connect(gainJump);
+        gainJump.connect(audioCtx.destination);
+        oscJump.start(now);
+        oscJump.stop(now + 0.15);
+
+        // Success Melodic Chime (C5, E5, G5)
+        const notes = [523.25, 659.25, 783.99];
+        notes.forEach((freq, idx) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + 0.1 + idx * 0.12);
+          
+          gain.gain.setValueAtTime(0, now + 0.1 + idx * 0.12);
+          gain.gain.linearRampToValueAtTime(0.25, now + 0.1 + idx * 0.12 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1 + idx * 0.12 + 0.35);
+          
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now + 0.1 + idx * 0.12);
+          osc.stop(now + 0.1 + idx * 0.12 + 0.4);
+        });
+      } catch (e) {
+        console.log("Audio play error", e);
+      }
+    }
+
+    // Play synthesized collision bump sound
+    function playCollisionSound() {
+      try {
+        initAudio();
+        const now = audioCtx.currentTime;
+        
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sawtooth';
+        
+        osc.frequency.setValueAtTime(160, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+        
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.35);
+      } catch (e) {
+        console.log("Audio play error", e);
+      }
+    }
+
+    // ==========================================
+    // 3. CANVAS 2D KAMPUNG & ANIMAL ENGINE
+    // ==========================================
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    let canvasWidth = 800;
+    let canvasHeight = 400;
+
+    // Animal character state
+    const animal = {
+      x: 80,
+      y: 0,
+      baseY: 0,
+      width: 50,
+      height: 50,
+      targetX: 80,
+      isColliding: false,
+      isJumping: false,
+      jumpProgress: 0
+    };
+
+    // Obstacle state (Wooden Log)
+    const obstacle = {
+      x: 320,
+      y: 0,
+      width: 45,
+      height: 35
+    };
+
+    // Environment background items
+    const clouds = [
+      { x: 50, y: 30, speed: 0.3, size: 40 },
+      { x: 300, y: 20, speed: 0.2, size: 55 },
+      { x: 600, y: 40, speed: 0.25, size: 45 }
+    ];
+
+    const hills = [
+      { x: 0, r: 180, y: 240, color: '#15803d' },
+      { x: 260, r: 220, y: 260, color: '#166534' },
+      { x: 580, r: 200, y: 250, color: '#15803d' }
+    ];
+
+    const kampungHouses = [
+      { x: 120, width: 75, height: 55 },
+      { x: 480, width: 85, height: 60 }
+    ];
+
+    function resizeCanvas() {
+      const container = canvas.parentElement;
+      canvasWidth = container.clientWidth;
+      canvasHeight = container.clientHeight;
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
+
+      animal.baseY = canvasHeight - 75;
+      animal.y = animal.baseY;
+      obstacle.y = canvasHeight - 65;
+      obstacle.x = canvasWidth * 0.55;
+      
+      if (!levelCompleted) {
+        animal.x = canvasWidth * 0.15;
+        animal.targetX = animal.x;
+      }
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+
+    function drawKampungBackground() {
+      // Sky
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, canvasHeight);
+      skyGrad.addColorStop(0, '#7dd3fc');
+      skyGrad.addColorStop(0.6, '#bae6fd');
+      skyGrad.addColorStop(1, '#fef08a');
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      // Sun
+      ctx.fillStyle = '#facc15';
+      ctx.beginPath();
+      ctx.arc(canvasWidth - 70, 50, 28, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Clouds
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      clouds.forEach(cloud => {
+        cloud.x -= cloud.speed;
+        if (cloud.x + cloud.size < 0) cloud.x = canvasWidth + cloud.size;
+        
+        ctx.beginPath();
+        ctx.arc(cloud.x, cloud.y, cloud.size * 0.5, 0, Math.PI * 2);
+        ctx.arc(cloud.x + cloud.size * 0.35, cloud.y - cloud.size * 0.2, cloud.size * 0.4, 0, Math.PI * 2);
+        ctx.arc(cloud.x + cloud.size * 0.7, cloud.y, cloud.size * 0.45, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Distant Lush Hills
+      hills.forEach(h => {
+        ctx.fillStyle = h.color;
+        ctx.beginPath();
+        ctx.arc(h.x, h.y, h.r, Math.PI, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Kampung Wooden Houses & Coconut Trees
+      kampungHouses.forEach(h => {
+        const hy = canvasHeight - 105;
+        // Wooden Body
+        ctx.fillStyle = '#78350f';
+        ctx.fillRect(h.x, hy, h.width, h.height);
+        
+        // Roof (Attap/Stilts style)
+        ctx.fillStyle = '#b45309';
+        ctx.beginPath();
+        ctx.moveTo(h.x - 10, hy);
+        ctx.lineTo(h.x + h.width / 2, hy - 30);
+        ctx.lineTo(h.x + h.width + 10, hy);
+        ctx.closePath();
+        ctx.fill();
+
+        // Stilts / Legs
+        ctx.fillStyle = '#451a03';
+        ctx.fillRect(h.x + 8, hy + h.height, 6, 20);
+        ctx.fillRect(h.x + h.width - 14, hy + h.height, 6, 20);
+
+        // Window
+        ctx.fillStyle = '#fef08a';
+        ctx.fillRect(h.x + 15, hy + 12, 14, 16);
+      });
+
+      // Coconut Palms
+      [60, 380, 680].forEach(tx => {
+        const ty = canvasHeight - 130;
+        ctx.strokeStyle = '#854d0e';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(tx, canvasHeight - 40);
+        ctx.quadraticCurveTo(tx + 15, ty + 40, tx + 10, ty);
+        ctx.stroke();
+
+        // Palm Fronds
+        ctx.fillStyle = '#15803d';
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * Math.PI / 2.5) - Math.PI / 4;
+          ctx.beginPath();
+          ctx.ellipse(tx + 10 + Math.cos(angle)*20, ty + Math.sin(angle)*20, 22, 8, angle, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      // Ground / Dirt Path
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(0, canvasHeight - 45, canvasWidth, 45);
+
+      // Grass Edge
+      ctx.fillStyle = '#22c55e';
+      ctx.fillRect(0, canvasHeight - 50, canvasWidth, 8);
+    }
+
+    function drawLogObstacle() {
+      const ox = obstacle.x;
+      const oy = obstacle.y;
+
+      // Wooden Log
+      ctx.fillStyle = '#78350f';
+      ctx.beginPath();
+      ctx.roundRect(ox, oy + 10, obstacle.width, obstacle.height - 10, [6]);
+      ctx.fill();
+
+      // Log Grain Lines
+      ctx.strokeStyle = '#451a03';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(ox + 8, oy + 18);
+      ctx.lineTo(ox + obstacle.width - 8, oy + 18);
+      ctx.moveTo(ox + 5, oy + 26);
+      ctx.lineTo(ox + obstacle.width - 5, oy + 26);
+      ctx.stroke();
+
+      // Leaves growing on log
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(ox + 5, oy + 8, 6, 0, Math.PI * 2);
+      ctx.arc(ox + 12, oy + 5, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawAnimatedAnimal() {
+      ctx.save();
+      
+      let jumpY = 0;
+      if (animal.isJumping) {
+        animal.jumpProgress += 0.04;
+        jumpY = Math.sin(animal.jumpProgress * Math.PI) * 75; // Jump arc
+        if (animal.jumpProgress >= 1) {
+          animal.isJumping = false;
+          animal.jumpProgress = 0;
+        }
+      }
+
+      let shakeX = 0;
+      if (animal.isColliding) {
+        shakeX = Math.sin(Date.now() * 0.06) * 6; // Hit jitter
+      }
+
+      const ax = animal.x + shakeX;
+      const ay = animal.baseY - jumpY;
+
+      // Shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(ax + 20, animal.baseY + 28, 20 - jumpY * 0.15, 6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cute Tiger Character facing Right 🐯
+      const legOffset = Math.sin(Date.now() * 0.015) * 4;
+
+      // Back Legs
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(ax + 5, ay + 18, 8, 12 + legOffset);
+      ctx.fillRect(ax + 25, ay + 18, 8, 12 - legOffset);
+
+      // Body
+      ctx.fillStyle = '#f97316';
+      ctx.beginPath();
+      ctx.roundRect(ax, ay, 35, 24, [10]);
+      ctx.fill();
+
+      // Tiger Stripes on body
+      ctx.fillStyle = '#451a03';
+      ctx.fillRect(ax + 10, ay + 4, 3, 10);
+      ctx.fillRect(ax + 18, ay + 3, 3, 12);
+      ctx.fillRect(ax + 26, ay + 4, 3, 10);
+
+      // Front Legs
+      ctx.fillStyle = '#f97316';
+      ctx.fillRect(ax + 8, ay + 18, 8, 12 - legOffset);
+      ctx.fillRect(ax + 28, ay + 18, 8, 12 + legOffset);
+
+      // Head (Facing Right)
+      ctx.beginPath();
+      ctx.arc(ax + 34, ay + 5, 15, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Ears
+      ctx.fillStyle = '#ea580c';
+      ctx.beginPath();
+      ctx.arc(ax + 30, ay - 8, 5, 0, Math.PI * 2);
+      ctx.arc(ax + 38, ay - 7, 5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Muzzle & Eyes facing right
+      ctx.fillStyle = '#ffedd5';
+      ctx.beginPath();
+      ctx.arc(ax + 40, ay + 8, 6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eye
+      ctx.fillStyle = '#000000';
+      ctx.beginPath();
+      ctx.arc(ax + 40, ay + 3, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Nose
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(ax + 44, ay + 7, 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Tail
+      ctx.strokeStyle = '#f97316';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay + 10);
+      ctx.quadraticCurveTo(ax - 12, ay - 5, ax - 8, ay - 12);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    function renderGameLoop() {
+      ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+      drawKampungBackground();
+      drawLogObstacle();
+      drawAnimatedAnimal();
+
+      // Horizontal movement lerp
+      if (Math.abs(animal.x - animal.targetX) > 0.5) {
+        animal.x += (animal.targetX - animal.x) * 0.08;
+      }
+
+      requestAnimationFrame(renderGameLoop);
+    }
+
+    function showCanvasNotice(text, duration = 3000) {
+      canvasNotice.textContent = text;
+      canvasNotice.classList.remove("opacity-0");
+      canvasNotice.classList.add("opacity-100");
+      
+      setTimeout(() => {
+        canvasNotice.classList.remove("opacity-100");
+        canvasNotice.classList.add("opacity-0");
+      }, duration);
+    }
+
+    // ==========================================
+    // 4. LEVENSHTEIN FUZZY SPEECH MATCHING
+    // ==========================================
+    function computeSimilarity(str1, str2) {
+      const clean1 = str1.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
+      const clean2 = str2.toLowerCase().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").trim();
+
+      if (clean1 === clean2) return 1.0;
+      if (clean1.length === 0 || clean2.length === 0) return 0.0;
+
+      const matrix = [];
+
+      for (let i = 0; i <= clean1.length; i++) matrix[i] = [i];
+      for (let j = 0; j <= clean2.length; j++) matrix[0][j] = j;
+
+      for (let i = 1; i <= clean1.length; i++) {
+        for (let j = 1; j <= clean2.length; j++) {
+          if (clean1.charAt(i - 1) === clean2.charAt(j - 1)) {
+            matrix[i][j] = matrix[i - 1][j - 1];
+          } else {
+            matrix[i][j] = Math.min(
+              matrix[i - 1][j - 1] + 1,
+              Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+            );
+          }
+        }
+      }
+
+      const distance = matrix[clean1.length][clean2.length];
+      const maxLength = Math.max(clean1.length, clean2.length);
+      return (maxLength - distance) / maxLength;
+    }
+
+    // ==========================================
+    // 5. SPEECH RECOGNITION CONTROLLER
+    // ==========================================
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+
+    function initSpeechRecognition() {
+      if (!SpeechRecognition) {
+        showAlert("Pelayar ini tidak menyokong pengecaman suara. Sila gunakan Google Chrome.");
+        micBtn.disabled = true;
+        micBtn.classList.add("opacity-50", "cursor-not-allowed");
+        return;
+      }
+
+      recognition = new SpeechRecognition();
+      recognition.lang = "ms-MY";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = function() {
+        isListening = true;
+        updateMicState(true);
+        speechStatusEl.innerHTML = `
+          <div class="sound-wave">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <span class="text-rose-600 font-bold">Mendengar... Sebut perkataan sekarang!</span>
+        `;
+        spokenResultEl.classList.add("hidden");
+      };
+
+      recognition.onresult = function(event) {
+        const transcript = event.results[0][0].transcript;
+        spokenResultEl.textContent = `"${transcript}"`;
+        spokenResultEl.classList.remove("hidden");
+
+        verifyPronunciation(transcript);
+      };
+
+      recognition.onerror = function(event) {
+        console.error("Speech Recognition Error:", event.error);
+        isListening = false;
+        updateMicState(false);
+
+        if (event.error === 'no-speech') {
+          speechStatusEl.innerHTML = `<span class="text-amber-600 font-bold">Tiada suara dikesan. Sila cuba lagi.</span>`;
+          showCanvasNotice("Tiada suara dikesan. Sila cuba lagi.");
+        } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          showAlert("Sila benarkan akses mikrofon untuk bermain permainan ini.");
+          speechStatusEl.innerHTML = `<span class="text-rose-600 font-bold">Akses mikrofon ditolak.</span>`;
+        } else {
+          speechStatusEl.innerHTML = `<span class="text-rose-600 font-bold">Sila cuba lagi.</span>`;
+        }
+        
+        retryBtn.classList.remove("hidden");
+      };
+
+      recognition.onend = function() {
+        isListening = false;
+        updateMicState(false);
+      };
+    }
+
+    function updateMicState(active) {
+      if (active) {
+        micBtn.classList.add("mic-listening");
+      } else {
+        micBtn.classList.remove("mic-listening");
+      }
+    }
+
+    function showAlert(msg) {
+      alertBox.textContent = msg;
+      alertBox.classList.remove("hidden");
+    }
+
+    function hideAlert() {
+      alertBox.classList.add("hidden");
+    }
+
+    async function handleMicClick() {
+      initAudio();
+
+      if (levelCompleted) return;
+
+      if (!SpeechRecognition) {
+        showAlert("Pelayar ini tidak menyokong pengecaman suara. Sila gunakan Google Chrome.");
+        return;
+      }
+
+      if (isListening) {
+        try { recognition.stop(); } catch(e){}
+        return;
+      }
+
+      hideAlert();
+
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          await navigator.mediaDevices.getUserMedia({ audio: true });
+        }
+        recognition.start();
+      } catch (err) {
+        console.warn("Microphone access permission error:", err);
+        showAlert("Sila benarkan akses mikrofon untuk bermain permainan ini.");
+        speechStatusEl.innerHTML = `<span class="text-rose-600 font-bold">Akses mikrofon ditolak!</span>`;
+      }
+    }
+
+    // ==========================================
+    // 6. PRONUNCIATION VERIFICATION & GAME LOGIC
+    // ==========================================
+    function verifyPronunciation(spokenText) {
+      const currentTarget = sentencesData[currentLevel].text;
+      const similarity = computeSimilarity(spokenText, currentTarget);
+      
+      console.log(`Spoken: "${spokenText}" | Target: "${currentTarget}" | Similarity: ${(similarity * 100).toFixed(1)}%`);
+
+      // 70% threshold tolerance for single animal words
+      if (similarity >= 0.65 || spokenText.toLowerCase().includes(currentTarget.toLowerCase())) {
+        // CORRECT ANSWER
+        levelCompleted = true;
+        score += 10;
+        scoreDisplay.textContent = score;
+
+        playSuccessSound();
+
+        // Trigger Animal Jump over log
+        animal.isJumping = true;
+        animal.jumpProgress = 0;
+        animal.targetX = canvasWidth * 0.85;
+
+        speechStatusEl.innerHTML = `<span class="text-emerald-600 font-bold text-base">🎉 Syabas! Sebutan Betul! (+10 Markah)</span>`;
+        showCanvasNotice("Hebat! Haiwan melompati halangan! 🐯✨");
+
+        nextBtn.classList.remove("hidden");
+        retryBtn.classList.add("hidden");
+
+      } else {
+        // INCORRECT ANSWER
+        playCollisionSound();
+
+        animal.isColliding = true;
+        setTimeout(() => animal.isColliding = false, 600);
+
+        speechStatusEl.innerHTML = `<span class="text-rose-600 font-bold">Sebutan kurang tepat. Sila cuba lagi!</span>`;
+        showCanvasNotice("Terlanggar batang kayu! 💥 Cuba lagi.");
+
+        retryBtn.classList.remove("hidden");
+      }
+    }
+
+    function loadLevel(index) {
+      if (index >= sentencesData.length) {
+        showVictoryScreen();
+        return;
+      }
+
+      currentLevel = index;
+      levelCompleted = false;
+
+      const data = sentencesData[currentLevel];
+      
+      levelDisplay.textContent = `Tahap ${data.id} / ${sentencesData.length}`;
+      targetSentenceEl.textContent = data.text;
+      placeCategoryEl.textContent = data.place;
+      placeIconEl.textContent = data.icon;
+
+      speechStatusEl.innerHTML = `<span>Tekan butang mikrofon untuk mula</span>`;
+      spokenResultEl.classList.add("hidden");
+
+      nextBtn.classList.add("hidden");
+      retryBtn.classList.add("hidden");
+
+      animal.targetX = canvasWidth * 0.15;
+      animal.x = canvasWidth * 0.15;
+      animal.isJumping = false;
+    }
+
+    function showVictoryScreen() {
+      finalScoreEl.textContent = score;
+      victoryModal.classList.remove("hidden");
+      initConfetti();
+    }
+
+    function resetGame() {
+      score = 0;
+      scoreDisplay.textContent = score;
+      victoryModal.classList.add("hidden");
+      loadLevel(0);
+    }
+
+    // ==========================================
+    // 7. CONFETTI ANIMATION SYSTEM
+    // ==========================================
+    function initConfetti() {
+      const cCanvas = document.getElementById("confettiCanvas");
+      const cCtx = cCanvas.getContext("2d");
+      cCanvas.width = victoryModal.clientWidth;
+      cCanvas.height = victoryModal.clientHeight;
+
+      const particles = [];
+      const colors = ['#22c55e', '#3b82f6', '#f59e0b', '#ec4899', '#8b5cf6'];
+
+      for (let i = 0; i < 80; i++) {
+        particles.push({
+          x: Math.random() * cCanvas.width,
+          y: Math.random() * cCanvas.height - cCanvas.height,
+          size: Math.random() * 8 + 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          vy: Math.random() * 3 + 2,
+          vx: Math.random() * 2 - 1,
+          rot: Math.random() * 360
+        });
+      }
+
+      function renderConfetti() {
+        if (victoryModal.classList.contains("hidden")) return;
+        cCtx.clearRect(0, 0, cCanvas.width, cCanvas.height);
+
+        particles.forEach(p => {
+          p.y += p.vy;
+          p.x += p.vx;
+          p.rot += 2;
+
+          cCtx.save();
+          cCtx.translate(p.x, p.y);
+          cCtx.rotate((p.rot * Math.PI) / 180);
+          cCtx.fillStyle = p.color;
+          cCtx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          cCtx.restore();
+
+          if (p.y > cCanvas.height) {
+            p.y = -10;
+            p.x = Math.random() * cCanvas.width;
+          }
+        });
+
+        requestAnimationFrame(renderConfetti);
+      }
+
+      renderConfetti();
+    }
+
+    // ==========================================
+    // 8. EVENT LISTENERS & INITIALIZATION
+    // ==========================================
+    micBtn.addEventListener("click", handleMicClick);
+
+    nextBtn.addEventListener("click", () => {
+      loadLevel(currentLevel + 1);
+    });
+
+    retryBtn.addEventListener("click", () => {
+      retryBtn.classList.add("hidden");
+      handleMicClick();
+    });
+
+    restartBtn.addEventListener("click", resetGame);
+
+    window.onload = function() {
+      resizeCanvas();
+      renderGameLoop();
+      initSpeechRecognition();
+      loadLevel(0);
+    };
+  </script>
+</body>
+</html>
